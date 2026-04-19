@@ -1,3 +1,5 @@
+[![Test](https://github.com/RogerBCode/proxio/actions/workflows/test.yml/badge.svg)](https://github.com/RogerBCode/proxio/actions/workflows/test.yml)
+
 # proxio
 
 An async Python wrapper for the Proxmox API, built on [httpx](https://www.python-httpx.org/) and [pydantic](https://docs.pydantic.dev/).
