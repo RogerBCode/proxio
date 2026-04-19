@@ -482,6 +482,48 @@ def test_node_get_status_offline_on_transport_error():
     anyio.run(_run)
 
 
+def test_node_get_runtime():
+    async def _run():
+        runtime_data = {"status": "online", "cpu": 0.5, "mem": 123, "disk": 456, "uptime": 789}
+        resource = MagicMock()
+        resource.get_status = AsyncMock(return_value=_resp(runtime_data))
+        node = _make_node(resource=resource)
+        result = await node.get_runtime()
+        assert result == runtime_data
+
+    anyio.run(_run)
+
+
+def test_node_get_uptime():
+    async def _run():
+        resource = MagicMock()
+        resource.get_status = AsyncMock(return_value=_resp({"status": "online", "uptime": 55555}))
+        node = _make_node(resource=resource)
+        assert await node.get_uptime() == 55555
+
+    anyio.run(_run)
+
+
+def test_node_get_disk():
+    async def _run():
+        resource = MagicMock()
+        resource.get_status = AsyncMock(return_value=_resp({"status": "online", "disk": 987654321}))
+        node = _make_node(resource=resource)
+        assert await node.get_disk() == 987654321
+
+    anyio.run(_run)
+
+
+def test_node_get_mem():
+    async def _run():
+        resource = MagicMock()
+        resource.get_status = AsyncMock(return_value=_resp({"status": "online", "mem": 12345678}))
+        node = _make_node(resource=resource)
+        assert await node.get_mem() == 12345678
+
+    anyio.run(_run)
+
+
 def test_node_get_cpu():
     async def _run():
         resource = MagicMock()
