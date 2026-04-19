@@ -67,8 +67,8 @@ Represents a Proxmox node. Returned by `client.get_nodes()` / `client.get_node()
 
 | Field | Type | Description |
 |---|---|---|
-| `name` | `str` | Node name |
-| `node_type` | `str` | Node type |
+| `node` | `str` | Node name |
+| `type` | `str` | Node type |
 | `maxcpu` | `int` | Number of CPUs |
 | `maxmem` | `int` | Maximum memory in bytes |
 | `maxdisk` | `int` | Maximum disk in bytes |
@@ -165,7 +165,7 @@ from proxio.client import ProxmoxClient
 async def main():
     async with ProxmoxClient(host="192.168.1.10", token="root@pam!mytoken=...", verify=False) as client:
         async for node in client.get_nodes():
-            print(node.name, await node.get_status())
+            print(node.node, await node.get_status())
 
 asyncio.run(main())
 ```
