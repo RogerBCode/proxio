@@ -43,6 +43,14 @@ _NODE_DATA = {
     "maxcpu": 8,
     "maxmem": 16 * 1024**3,
     "maxdisk": 100 * 1024**3,
+    "cpu": 0.0,
+    "mem": 0,
+    "disk": 0,
+    "uptime": 0,
+    "status": "online",
+    "ssl_fingerprint": "",
+    "id": "node/pve1",
+    "level": "",
 }
 
 
@@ -65,20 +73,15 @@ def _make_vm(vmid=100, name="test-vm", node="pve1", template=False, resource=Non
         maxdisk=10 * 1024**3,
         tags="",
         template=template,
-        _resource=resource or _make_vm_resource(),
-        _node_resource=node_resource or _make_node_resource(),
+        resource=resource or _make_vm_resource(),
+        node_resource=node_resource or _make_node_resource(),
     )
 
 
-def _make_node(name="pve1", resource=None):
-    return Node(
-        name=name,
-        node_type="node",
-        maxcpu=8,
-        maxmem=16 * 1024**3,
-        maxdisk=100 * 1024**3,
-        _resource=resource or MagicMock(),
-    )
+def _make_node(node="pve1", resource=None):
+    data = dict(_NODE_DATA)
+    data["node"] = node
+    return Node.from_data(data, resource=resource or MagicMock())
 
 
 # ---------------------------------------------------------------------------
@@ -190,10 +193,10 @@ def test_build_clone_payload_excludes_none_optionals():
 def test_node_from_data():
     resource = MagicMock()
     node = Node.from_data(_NODE_DATA, resource=resource)
-    assert node.name == "pve1"
-    assert node.node_type == "node"
+    assert node.node == "pve1"
+    assert node.type == "node"
     assert node.maxcpu == 8
-    assert node._resource is resource
+    assert node.resource is resource
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +324,7 @@ def test_vm_agent_ping():
     async def _run():
         agent_res = MagicMock()
         agent_res.ping = AsyncMock(return_value=_resp({}))
-        agent = VmAgent(agent_res)
+        agent = VmAgent(resource=agent_res)
         await agent.ping()
         agent_res.ping.assert_called_once()
 
@@ -332,7 +335,7 @@ def test_vm_agent_get_hostname():
     async def _run():
         agent_res = MagicMock()
         agent_res.get_hostname = AsyncMock(return_value=_resp({"result": {"host-name": "myhost"}}))
-        agent = VmAgent(agent_res)
+        agent = VmAgent(resource=agent_res)
         hostname = await agent.get_hostname()
         assert hostname == "myhost"
 
@@ -344,7 +347,7 @@ def test_vm_agent_get_hostname_vm_not_running():
         agent_res = MagicMock()
         mock = _resp({}, status_code=500)
         agent_res.get_hostname = AsyncMock(return_value=mock)
-        agent = VmAgent(agent_res)
+        agent = VmAgent(resource=agent_res)
         hostname = await agent.get_hostname()
         assert hostname is None
 
@@ -356,7 +359,7 @@ def test_vm_agent_get_osinfo():
         agent_res = MagicMock()
         osinfo = {"id": "ubuntu", "name": "Ubuntu 22.04"}
         agent_res.get_osinfo = AsyncMock(return_value=_resp({"result": osinfo}))
-        agent = VmAgent(agent_res)
+        agent = VmAgent(resource=agent_res)
         result = await agent.get_osinfo()
         assert result == osinfo
 
@@ -368,7 +371,7 @@ def test_vm_agent_get_network_interfaces():
         agent_res = MagicMock()
         ifaces = [{"name": "eth0", "hardware-address": "aa:bb:cc:dd:ee:ff"}]
         agent_res.get_network_interfaces = AsyncMock(return_value=_resp({"result": ifaces}))
-        agent = VmAgent(agent_res)
+        agent = VmAgent(resource=agent_res)
         result = await agent.get_network_interfaces()
         assert result == ifaces
 
@@ -381,7 +384,7 @@ def test_vm_agent_file_read():
         encoded = base64.b64encode(content).decode()
         agent_res = MagicMock()
         agent_res.file_read = AsyncMock(return_value=_resp({"content": encoded}))
-        agent = VmAgent(agent_res)
+        agent = VmAgent(resource=agent_res)
         result = await agent.file_read("/etc/hostname")
         assert result == content
         agent_res.file_read.assert_called_once_with("/etc/hostname")
@@ -394,7 +397,7 @@ def test_vm_agent_file_write():
         content = b"new content"
         agent_res = MagicMock()
         agent_res.file_write = AsyncMock(return_value=_resp({}))
-        agent = VmAgent(agent_res)
+        agent = VmAgent(resource=agent_res)
         await agent.file_write("/tmp/test.txt", content)
         expected_encoded = base64.b64encode(content).decode()
         agent_res.file_write.assert_called_once_with("/tmp/test.txt", expected_encoded, encode=False)
@@ -407,7 +410,7 @@ def test_vm_agent_exec_success():
         agent_res = MagicMock()
         agent_res.exec = AsyncMock(return_value=_resp({"pid": 42}))
         agent_res.exec_status = AsyncMock(return_value=_resp({"exited": True, "exitcode": 0, "out-data": "ok\n"}))
-        agent = VmAgent(agent_res)
+        agent = VmAgent(resource=agent_res)
         result = await agent.exec("echo", args=["ok"])
         assert result["out-data"] == "ok\n"
         agent_res.exec.assert_called_once()
@@ -420,7 +423,7 @@ def test_vm_agent_exec_nonzero_raises():
         agent_res = MagicMock()
         agent_res.exec = AsyncMock(return_value=_resp({"pid": 99}))
         agent_res.exec_status = AsyncMock(return_value=_resp({"exited": True, "exitcode": 1, "err-data": "oops"}))
-        agent = VmAgent(agent_res)
+        agent = VmAgent(resource=agent_res)
         with pytest.raises(RuntimeError, match="exited with code 1"):
             await agent.exec("false")
 
@@ -433,7 +436,7 @@ def test_vm_agent_exec_timeout():
         agent_res.exec = AsyncMock(return_value=_resp({"pid": 7}))
         # Never finished — exited is always False
         agent_res.exec_status = AsyncMock(return_value=_resp({"exited": False}))
-        agent = VmAgent(agent_res)
+        agent = VmAgent(resource=agent_res)
         with pytest.raises(TimeoutError):
             await agent.exec("sleep", timeout=0.01, poll_interval=0.001)
 
@@ -444,7 +447,7 @@ def test_vm_agent_set_user_password():
     async def _run():
         agent_res = MagicMock()
         agent_res.set_user_password = AsyncMock(return_value=_resp({}))
-        agent = VmAgent(agent_res)
+        agent = VmAgent(resource=agent_res)
         await agent.set_user_password("alice", "s3cr3t")
         agent_res.set_user_password.assert_called_once_with("alice", "s3cr3t", crypted=False)
 
@@ -459,9 +462,11 @@ def test_vm_agent_set_user_password():
 def test_node_get_status_online():
     async def _run():
         resource = MagicMock()
-        resource.get_status = AsyncMock(return_value=_resp({"status": "online", "cpu": 0.1}))
+        resource.get_status = AsyncMock(return_value=_resp({"rootfs": {"avail": 0, "total": 0, "free": 0, "used": 0}, "status": "online", "cpu": 0.1}))
         node = _make_node(resource=resource)
-        assert await node.get_status() == "online"
+        status = await node.get_status()
+        assert status.status == "online"
+        assert status.cpu == 0.1
 
     anyio.run(_run)
 
@@ -471,7 +476,8 @@ def test_node_get_status_offline_on_transport_error():
         resource = MagicMock()
         resource.get_status = AsyncMock(side_effect=httpx.ConnectError("unreachable"))
         node = _make_node(resource=resource)
-        assert await node.get_status() == "offline"
+        status = await node.get_status()
+        assert status.status == "offline"
 
     anyio.run(_run)
 
@@ -657,8 +663,8 @@ def test_proxmox_client_get_nodes():
         client.nodes.list = AsyncMock(return_value=_resp(nodes_data))
         collected = [n async for n in client.get_nodes()]
         assert len(collected) == 2
-        assert collected[0].name == "pve1"
-        assert collected[1].name == "pve2"
+        assert collected[0].node == "pve1"
+        assert collected[1].node == "pve2"
 
     anyio.run(_run)
 
@@ -669,7 +675,7 @@ def test_proxmox_client_get_node_found():
         nodes_data = [{**_NODE_DATA, "node": "pve1"}]
         client.nodes.list = AsyncMock(return_value=_resp(nodes_data))
         node = await client.get_node("pve1")
-        assert node.name == "pve1"
+        assert node.node == "pve1"
 
     anyio.run(_run)
 
