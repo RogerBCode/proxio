@@ -1,7 +1,5 @@
 name: Test
 
-env:
-    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 on:
   push:
     branches: [main]
@@ -11,15 +9,24 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # Opt-in to Node 24 as requested
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - uses: actions/checkout@v4.2.2
-      - name: Set up Python
-        uses: actions/setup-python@v5.6.0
-        with:
-          python-version: '3.x'
+      - uses: actions/checkout@v4
+      
+      # Use the official setup-uv action
       - name: Install uv
-        run: pip install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          
+      # uv can manage Python versions directly
+      - name: Install Python
+        run: uv python install 3.12
+
       - name: Install project and dev dependencies
         run: uv sync --dev
+
       - name: Run tests
         run: uv run pytest --cov=proxio --cov-report=term
