@@ -15,27 +15,33 @@ class RootFS(BaseModel):
     free: int
     used: int
 
+
 class CurrentKernel(BaseModel):
     sysname: str
     machine: str
     version: str
     release: str
 
+
 class KSM(BaseModel):
     shared: int
+
 
 class Swap(BaseModel):
     total: int
     used: int
     free: int
 
+
 class BootInfo(BaseModel):
     mode: str
+
 
 class Memory(BaseModel):
     used: int
     free: int
     total: int
+
 
 class CPUInfo(BaseModel):
     model: str
@@ -46,6 +52,7 @@ class CPUInfo(BaseModel):
     flags: str
     hvm: str
     sockets: int
+
 
 class NodeStatus(BaseModel):
     rootfs: RootFS
@@ -73,10 +80,9 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable
 
 
-
-
 class VmAgent(BaseModel):
     """Domain-level interface to the QEMU guest agent for a virtual machine."""
+
     resource: Any
 
     class Config:
@@ -159,9 +165,9 @@ class VmAgent(BaseModel):
         response.raise_for_status()
 
 
-
 class VirtualMachine(BaseModel):
     """Domain model for a Proxmox QEMU virtual machine."""
+
     vmid: int
     name: str
     node: str
@@ -180,7 +186,7 @@ class VirtualMachine(BaseModel):
     def __init__(self, **data):
         super().__init__(**data)
         # Initialize agent after resource is set
-        object.__setattr__(self, 'agent', VmAgent(resource=self.resource.agent))
+        object.__setattr__(self, "agent", VmAgent(resource=self.resource.agent))
 
     @classmethod
     def from_data(cls, data: dict[str, Any], node: str, resource: Any, node_resource: Any) -> "VirtualMachine":
@@ -392,10 +398,9 @@ class VirtualMachine(BaseModel):
         await self._run_task_and_wait(self.resource.delete(), timeout=timeout)
 
 
-
-
 class Node(BaseModel):
     """Domain model for a Proxmox node (from /nodes list)."""
+
     node: str
     type: str
     maxcpu: int
@@ -419,7 +424,6 @@ class Node(BaseModel):
     def from_data(cls, data: dict[str, Any], resource: Any = None) -> "Node":
         return cls(resource=resource, **data)
 
-
     # --- Async runtime accessors (always fetch live from the API) ---
 
     async def _get_runtime(self) -> dict[str, Any]:
@@ -431,10 +435,7 @@ class Node(BaseModel):
         try:
             data = await self._get_runtime()
         except httpx.TransportError:
-            return NodeStatus(
-                rootfs=RootFS(avail=0, total=0, free=0, used=0),
-                status="offline"
-            )
+            return NodeStatus(rootfs=RootFS(avail=0, total=0, free=0, used=0), status="offline")
 
         return NodeStatus(**data)
 

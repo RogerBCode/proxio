@@ -462,11 +462,7 @@ def test_vm_agent_set_user_password():
 def test_node_get_status_online():
     async def _run():
         resource = MagicMock()
-        resource.get_status = AsyncMock(return_value=_resp({
-            "rootfs": {"avail": 0, "total": 0, "free": 0, "used": 0},
-            "status": "online",
-            "cpu": 0.1
-        }))
+        resource.get_status = AsyncMock(return_value=_resp({"rootfs": {"avail": 0, "total": 0, "free": 0, "used": 0}, "status": "online", "cpu": 0.1}))
         node = _make_node(resource=resource)
         status = await node.get_status()
         assert status.status == "online"
