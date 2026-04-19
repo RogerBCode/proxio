@@ -1,19 +1,19 @@
 import base64
+from unittest.mock import AsyncMock, MagicMock
 
 import anyio
 import httpx
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from proxio import version
 from proxio.client import ProxmoxClient
 from proxio.models import Node, VirtualMachine, VmAgent
 from proxio.nodes import NodeResource, Nodes, QemuEndpoint, VmResource
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _resp(data=None, status_code=200):
     """Build a mock httpx.Response."""
@@ -21,9 +21,7 @@ def _resp(data=None, status_code=200):
     mock.status_code = status_code
     mock.json.return_value = {"data": data} if data is not None else {}
     if status_code >= 400:
-        mock.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "error", request=MagicMock(), response=mock
-        )
+        mock.raise_for_status.side_effect = httpx.HTTPStatusError("error", request=MagicMock(), response=mock)
     else:
         mock.raise_for_status.return_value = None
     return mock
@@ -87,6 +85,7 @@ def _make_node(name="pve1", resource=None):
 # proxio/__init__.py
 # ---------------------------------------------------------------------------
 
+
 def test_version():
     v = version()
     assert len(v.split(".")) == 3
@@ -100,6 +99,7 @@ def test_version_non_empty():
 # ---------------------------------------------------------------------------
 # proxio/nodes.py — synchronous construction
 # ---------------------------------------------------------------------------
+
 
 def test_nodes_call_returns_node_resource():
     client = MagicMock(spec=httpx.AsyncClient)
@@ -129,6 +129,7 @@ def test_qemu_endpoint_call_returns_vm_resource():
 # ---------------------------------------------------------------------------
 # proxio/models.py — VirtualMachine static helpers
 # ---------------------------------------------------------------------------
+
 
 def test_virtual_machine_from_data():
     resource = _make_vm_resource()
@@ -185,6 +186,7 @@ def test_build_clone_payload_excludes_none_optionals():
 # proxio/models.py — Node static helpers
 # ---------------------------------------------------------------------------
 
+
 def test_node_from_data():
     resource = MagicMock()
     node = Node.from_data(_NODE_DATA, resource=resource)
@@ -198,12 +200,14 @@ def test_node_from_data():
 # proxio/models.py — async VirtualMachine methods
 # ---------------------------------------------------------------------------
 
+
 def test_vm_get_status_running():
     async def _run():
         resource = _make_vm_resource()
         resource.status.current = AsyncMock(return_value=_resp({"status": "running", "cpu": 0.5}))
         vm = _make_vm(resource=resource)
         assert await vm.get_status() == "running"
+
     anyio.run(_run)
 
 
@@ -213,6 +217,7 @@ def test_vm_get_cpu():
         resource.status.current = AsyncMock(return_value=_resp({"status": "running", "cpu": 0.75}))
         vm = _make_vm(resource=resource)
         assert await vm.get_cpu() == 0.75
+
     anyio.run(_run)
 
 
@@ -222,6 +227,7 @@ def test_vm_get_mem():
         resource.status.current = AsyncMock(return_value=_resp({"status": "running", "mem": 1024}))
         vm = _make_vm(resource=resource)
         assert await vm.get_mem() == 1024
+
     anyio.run(_run)
 
 
@@ -232,6 +238,7 @@ def test_vm_clone_raises_when_running():
         vm = _make_vm(resource=resource)
         with pytest.raises(RuntimeError, match="currently running"):
             await vm.clone("clone-vm", newid=200)
+
     anyio.run(_run)
 
 
@@ -242,6 +249,7 @@ def test_vm_clone_raises_linked_without_snapname():
         vm = _make_vm(resource=resource)
         with pytest.raises(ValueError, match="linked clone"):
             await vm.clone("linked-clone", newid=200, full=False)
+
     anyio.run(_run)
 
 
@@ -251,12 +259,11 @@ def test_vm_start():
         node_resource = _make_node_resource()
         upid = "UPID:pve1:start:task"
         resource.status.start = AsyncMock(return_value=_resp(upid))
-        node_resource.tasks.get_status = AsyncMock(
-            return_value=_resp({"status": "stopped", "exitstatus": "OK"})
-        )
+        node_resource.tasks.get_status = AsyncMock(return_value=_resp({"status": "stopped", "exitstatus": "OK"}))
         vm = _make_vm(resource=resource, node_resource=node_resource)
         await vm.start()
         resource.status.start.assert_called_once()
+
     anyio.run(_run)
 
 
@@ -266,12 +273,11 @@ def test_vm_stop():
         node_resource = _make_node_resource()
         upid = "UPID:pve1:stop:task"
         resource.status.stop = AsyncMock(return_value=_resp(upid))
-        node_resource.tasks.get_status = AsyncMock(
-            return_value=_resp({"status": "stopped", "exitstatus": "OK"})
-        )
+        node_resource.tasks.get_status = AsyncMock(return_value=_resp({"status": "stopped", "exitstatus": "OK"}))
         vm = _make_vm(resource=resource, node_resource=node_resource)
         await vm.stop()
         resource.status.stop.assert_called_once()
+
     anyio.run(_run)
 
 
@@ -282,16 +288,13 @@ def test_vm_snapshot_and_rollback():
         upid = "UPID:pve1:snap:task"
         resource.snapshots.create = AsyncMock(return_value=_resp(upid))
         resource.snapshots.rollback = AsyncMock(return_value=_resp(upid))
-        node_resource.tasks.get_status = AsyncMock(
-            return_value=_resp({"status": "stopped", "exitstatus": "OK"})
-        )
+        node_resource.tasks.get_status = AsyncMock(return_value=_resp({"status": "stopped", "exitstatus": "OK"}))
         vm = _make_vm(resource=resource, node_resource=node_resource)
         await vm.snapshot("snap1", description="test snap")
-        resource.snapshots.create.assert_called_once_with(
-            {"snapname": "snap1", "description": "test snap"}
-        )
+        resource.snapshots.create.assert_called_once_with({"snapname": "snap1", "description": "test snap"})
         await vm.rollback("snap1")
         resource.snapshots.rollback.assert_called_once_with("snap1")
+
     anyio.run(_run)
 
 
@@ -301,18 +304,18 @@ def test_vm_wait_for_task_failure():
         node_resource = _make_node_resource()
         upid = "UPID:pve1:fail:task"
         resource.status.start = AsyncMock(return_value=_resp(upid))
-        node_resource.tasks.get_status = AsyncMock(
-            return_value=_resp({"status": "stopped", "exitstatus": "Error: disk full"})
-        )
+        node_resource.tasks.get_status = AsyncMock(return_value=_resp({"status": "stopped", "exitstatus": "Error: disk full"}))
         vm = _make_vm(resource=resource, node_resource=node_resource)
         with pytest.raises(RuntimeError, match="failed"):
             await vm.start()
+
     anyio.run(_run)
 
 
 # ---------------------------------------------------------------------------
 # proxio/models.py — async VmAgent methods
 # ---------------------------------------------------------------------------
+
 
 def test_vm_agent_ping():
     async def _run():
@@ -321,18 +324,18 @@ def test_vm_agent_ping():
         agent = VmAgent(agent_res)
         await agent.ping()
         agent_res.ping.assert_called_once()
+
     anyio.run(_run)
 
 
 def test_vm_agent_get_hostname():
     async def _run():
         agent_res = MagicMock()
-        agent_res.get_hostname = AsyncMock(
-            return_value=_resp({"result": {"host-name": "myhost"}})
-        )
+        agent_res.get_hostname = AsyncMock(return_value=_resp({"result": {"host-name": "myhost"}}))
         agent = VmAgent(agent_res)
         hostname = await agent.get_hostname()
         assert hostname == "myhost"
+
     anyio.run(_run)
 
 
@@ -344,6 +347,7 @@ def test_vm_agent_get_hostname_vm_not_running():
         agent = VmAgent(agent_res)
         hostname = await agent.get_hostname()
         assert hostname is None
+
     anyio.run(_run)
 
 
@@ -355,6 +359,7 @@ def test_vm_agent_get_osinfo():
         agent = VmAgent(agent_res)
         result = await agent.get_osinfo()
         assert result == osinfo
+
     anyio.run(_run)
 
 
@@ -366,6 +371,7 @@ def test_vm_agent_get_network_interfaces():
         agent = VmAgent(agent_res)
         result = await agent.get_network_interfaces()
         assert result == ifaces
+
     anyio.run(_run)
 
 
@@ -379,6 +385,7 @@ def test_vm_agent_file_read():
         result = await agent.file_read("/etc/hostname")
         assert result == content
         agent_res.file_read.assert_called_once_with("/etc/hostname")
+
     anyio.run(_run)
 
 
@@ -391,6 +398,7 @@ def test_vm_agent_file_write():
         await agent.file_write("/tmp/test.txt", content)
         expected_encoded = base64.b64encode(content).decode()
         agent_res.file_write.assert_called_once_with("/tmp/test.txt", expected_encoded, encode=False)
+
     anyio.run(_run)
 
 
@@ -398,13 +406,12 @@ def test_vm_agent_exec_success():
     async def _run():
         agent_res = MagicMock()
         agent_res.exec = AsyncMock(return_value=_resp({"pid": 42}))
-        agent_res.exec_status = AsyncMock(
-            return_value=_resp({"exited": True, "exitcode": 0, "out-data": "ok\n"})
-        )
+        agent_res.exec_status = AsyncMock(return_value=_resp({"exited": True, "exitcode": 0, "out-data": "ok\n"}))
         agent = VmAgent(agent_res)
         result = await agent.exec("echo", args=["ok"])
         assert result["out-data"] == "ok\n"
         agent_res.exec.assert_called_once()
+
     anyio.run(_run)
 
 
@@ -412,12 +419,11 @@ def test_vm_agent_exec_nonzero_raises():
     async def _run():
         agent_res = MagicMock()
         agent_res.exec = AsyncMock(return_value=_resp({"pid": 99}))
-        agent_res.exec_status = AsyncMock(
-            return_value=_resp({"exited": True, "exitcode": 1, "err-data": "oops"})
-        )
+        agent_res.exec_status = AsyncMock(return_value=_resp({"exited": True, "exitcode": 1, "err-data": "oops"}))
         agent = VmAgent(agent_res)
         with pytest.raises(RuntimeError, match="exited with code 1"):
             await agent.exec("false")
+
     anyio.run(_run)
 
 
@@ -430,6 +436,7 @@ def test_vm_agent_exec_timeout():
         agent = VmAgent(agent_res)
         with pytest.raises(TimeoutError):
             await agent.exec("sleep", timeout=0.01, poll_interval=0.001)
+
     anyio.run(_run)
 
 
@@ -440,6 +447,7 @@ def test_vm_agent_set_user_password():
         agent = VmAgent(agent_res)
         await agent.set_user_password("alice", "s3cr3t")
         agent_res.set_user_password.assert_called_once_with("alice", "s3cr3t", crypted=False)
+
     anyio.run(_run)
 
 
@@ -447,12 +455,14 @@ def test_vm_agent_set_user_password():
 # proxio/models.py — async Node methods
 # ---------------------------------------------------------------------------
 
+
 def test_node_get_status_online():
     async def _run():
         resource = MagicMock()
         resource.get_status = AsyncMock(return_value=_resp({"status": "online", "cpu": 0.1}))
         node = _make_node(resource=resource)
         assert await node.get_status() == "online"
+
     anyio.run(_run)
 
 
@@ -462,6 +472,7 @@ def test_node_get_status_offline_on_transport_error():
         resource.get_status = AsyncMock(side_effect=httpx.ConnectError("unreachable"))
         node = _make_node(resource=resource)
         assert await node.get_status() == "offline"
+
     anyio.run(_run)
 
 
@@ -471,6 +482,7 @@ def test_node_get_cpu():
         resource.get_status = AsyncMock(return_value=_resp({"status": "online", "cpu": 0.42}))
         node = _make_node(resource=resource)
         assert await node.get_cpu() == pytest.approx(0.42)
+
     anyio.run(_run)
 
 
@@ -486,6 +498,7 @@ def test_node_list_vms_all():
         node = _make_node(resource=resource)
         vms = await node.list_vms()
         assert len(vms) == 2
+
     anyio.run(_run)
 
 
@@ -502,6 +515,7 @@ def test_node_list_vms_filter_template():
         templates = await node.list_vms(template=True)
         assert len(templates) == 1
         assert templates[0].name == "tpl-b"
+
     anyio.run(_run)
 
 
@@ -519,6 +533,7 @@ def test_node_list_vms_filter_name_glob():
         webs = await node.list_vms(name="web-*")
         assert len(webs) == 2
         assert all(vm.name.startswith("web-") for vm in webs)
+
     anyio.run(_run)
 
 
@@ -531,6 +546,7 @@ def test_node_get_vm_by_vmid():
         node = _make_node(resource=resource)
         vm = await node.get_vm(vmid=100)
         assert vm.vmid == 100
+
     anyio.run(_run)
 
 
@@ -543,6 +559,7 @@ def test_node_get_vm_by_name():
         node = _make_node(resource=resource)
         vm = await node.get_vm(name="test-vm")
         assert vm.name == "test-vm"
+
     anyio.run(_run)
 
 
@@ -551,6 +568,7 @@ def test_node_get_vm_no_args_raises():
         node = _make_node()
         with pytest.raises(ValueError, match="At least one"):
             await node.get_vm()
+
     anyio.run(_run)
 
 
@@ -562,6 +580,7 @@ def test_node_get_vm_vmid_not_found_raises():
         node = _make_node(resource=resource)
         with pytest.raises(LookupError):
             await node.get_vm(vmid=999)
+
     anyio.run(_run)
 
 
@@ -573,6 +592,7 @@ def test_node_get_vm_name_not_found_raises():
         node = _make_node(resource=resource)
         with pytest.raises(LookupError):
             await node.get_vm(name="nonexistent")
+
     anyio.run(_run)
 
 
@@ -588,6 +608,7 @@ def test_node_get_vm_multiple_name_matches_raises():
         node = _make_node(resource=resource)
         with pytest.raises(LookupError, match="Multiple"):
             await node.get_vm(name="web-01")
+
     anyio.run(_run)
 
 
@@ -600,12 +621,14 @@ def test_node_get_vm_vmid_name_mismatch_raises():
         node = _make_node(resource=resource)
         with pytest.raises(LookupError, match="does not match"):
             await node.get_vm(vmid=100, name="wrong-name")
+
     anyio.run(_run)
 
 
 # ---------------------------------------------------------------------------
 # proxio/client.py — ProxmoxClient
 # ---------------------------------------------------------------------------
+
 
 def test_proxmox_client_init():
     client = ProxmoxClient("pve.local", "user@pam!token=secret", verify=False, trust_env=False)
@@ -620,6 +643,7 @@ def test_proxmox_client_next_vmid():
         client.get = AsyncMock(return_value=_resp(200))
         vmid = await client.next_vmid()
         assert vmid == 200
+
     anyio.run(_run)
 
 
@@ -635,6 +659,7 @@ def test_proxmox_client_get_nodes():
         assert len(collected) == 2
         assert collected[0].name == "pve1"
         assert collected[1].name == "pve2"
+
     anyio.run(_run)
 
 
@@ -645,6 +670,7 @@ def test_proxmox_client_get_node_found():
         client.nodes.list = AsyncMock(return_value=_resp(nodes_data))
         node = await client.get_node("pve1")
         assert node.name == "pve1"
+
     anyio.run(_run)
 
 
@@ -654,5 +680,5 @@ def test_proxmox_client_get_node_not_found():
         client.nodes.list = AsyncMock(return_value=_resp([]))
         with pytest.raises(LookupError, match="pve99"):
             await client.get_node("pve99")
-    anyio.run(_run)
 
+    anyio.run(_run)
