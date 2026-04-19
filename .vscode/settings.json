@@ -5,5 +5,7 @@
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "ruff.enable": true,
-    "ruff.format.backend": "uv"
+    "ruff.format.backend": "uv",
+    "python.analysis.diagnosticMode": "openFilesOnly",
+    "python.terminal.useEnvFile": true
 }
